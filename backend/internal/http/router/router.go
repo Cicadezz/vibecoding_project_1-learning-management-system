@@ -5,8 +5,10 @@ import (
 
 	"learning-growth-platform/internal/auth"
 	"learning-growth-platform/internal/http/middleware"
+	"learning-growth-platform/internal/study"
 	"learning-growth-platform/internal/subjects"
 	"learning-growth-platform/internal/tasks"
+	"learning-growth-platform/internal/timer"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -27,6 +29,9 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 		authMW := middleware.NewAuthMiddleware(authSvc)
 		subjectHandler := subjects.NewHandler(subjects.NewService(subjects.NewRepository(db)))
 		taskHandler := tasks.NewHandler(taskSvc)
+		studyRepo := study.NewRepository(db)
+		studyHandler := study.NewHandler(study.NewService(studyRepo))
+		timerHandler := timer.NewHandler(timer.NewService(timer.NewRepository(db)))
 
 		authGroup := r.Group("/api/auth")
 		authGroup.POST("/register", authHandler.Register)
@@ -47,6 +52,9 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 		apiGroup.POST("/tasks", taskHandler.Create)
 		apiGroup.PUT("/tasks/:id", taskHandler.Update)
 		apiGroup.DELETE("/tasks/:id", taskHandler.Delete)
+		apiGroup.POST("/study/sessions", studyHandler.Create)
+		apiGroup.POST("/timer/start", timerHandler.Start)
+		apiGroup.POST("/timer/stop", timerHandler.Stop)
 	}
 
 	return r
