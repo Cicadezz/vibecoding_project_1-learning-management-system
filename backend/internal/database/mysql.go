@@ -44,7 +44,5 @@ func quotedPasswordRetryDSN(dsn string) (string, bool) {
 
 func isAuthError(err error) bool {
 	msg := strings.ToLower(err.Error())
-	return strings.Contains(msg, "access denied") ||
-		strings.Contains(msg, "authentication") ||
-		strings.Contains(msg, "auth")
+	return strings.Contains(msg, "access denied") || strings.Contains(msg, "authentication")
 }

@@ -10,12 +10,9 @@ type Config struct {
 
 func Load() Config {
 	return Config{
-		Port: getEnvOrDefault("APP_PORT", "8080"),
-		MySQLDSN: getEnvOrDefault(
-			"MYSQL_DSN",
-			"root:010511@tcp(127.0.0.1:3306)/learning_growth?charset=utf8mb4&parseTime=True&loc=Local",
-		),
-		JWTSecret: getEnvOrDefault("JWT_SECRET", "local-dev-secret"),
+		Port:      getEnvOrDefault("APP_PORT", "8080"),
+		MySQLDSN:  os.Getenv("MYSQL_DSN"),
+		JWTSecret: os.Getenv("JWT_SECRET"),
 	}
 }
 
