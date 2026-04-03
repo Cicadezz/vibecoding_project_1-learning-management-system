@@ -7,9 +7,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func NewRouter(db *gorm.DB) *gin.Engine {
-	_ = db
-
+func NewRouter(_ *gorm.DB) *gin.Engine {
 	r := gin.Default()
 	r.GET("/api/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
