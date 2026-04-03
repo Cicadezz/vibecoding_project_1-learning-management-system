@@ -26,8 +26,17 @@ var allowedStatuses = map[string]struct{}{
 	"DONE":    {},
 }
 
+type TaskRepository interface {
+	CreateTask(ctx context.Context, task *models.Task) error
+	ListTasksByDate(ctx context.Context, userID uint64, planDate time.Time) ([]models.Task, error)
+	GetTaskByID(ctx context.Context, taskID, userID uint64) (*models.Task, error)
+	UpdateTask(ctx context.Context, task *models.Task) error
+	DeleteTask(ctx context.Context, taskID, userID uint64) error
+	CarryOverPending(ctx context.Context, userID uint64, fromDate, toDate time.Time) (int64, error)
+}
+
 type Service struct {
-	repo *Repository
+	repo TaskRepository
 	now  func() time.Time
 }
 
@@ -52,7 +61,7 @@ type UpdateTaskInput struct {
 	Ext         []byte
 }
 
-func NewService(repo *Repository) *Service {
+func NewService(repo TaskRepository) *Service {
 	return &Service{
 		repo: repo,
 		now:  time.Now,
