@@ -15,6 +15,17 @@ import (
 var ErrInvalidTaskInput = errors.New("invalid task input")
 var ErrTaskNotFound = errors.New("task not found")
 
+var allowedPriorities = map[string]struct{}{
+	"HIGH":   {},
+	"MEDIUM": {},
+	"LOW":    {},
+}
+
+var allowedStatuses = map[string]struct{}{
+	"PENDING": {},
+	"DONE":    {},
+}
+
 type Service struct {
 	repo *Repository
 	now  func() time.Time
@@ -28,7 +39,6 @@ type CreateTaskInput struct {
 	PlanDate    time.Time
 	Status      string
 	CompletedAt *time.Time
-	CarryCount  int
 	Ext         []byte
 }
 
@@ -39,7 +49,6 @@ type UpdateTaskInput struct {
 	PlanDate    *time.Time
 	Status      *string
 	CompletedAt *time.Time
-	CarryCount  *int
 	Ext         []byte
 }
 
@@ -56,14 +65,16 @@ func (s *Service) Create(input CreateTaskInput) (*models.Task, error) {
 		return nil, ErrInvalidTaskInput
 	}
 
-	priority := strings.ToUpper(strings.TrimSpace(input.Priority))
-	if priority == "" {
-		priority = "MEDIUM"
+	priority, err := normalizePriority(input.Priority)
+	if err != nil {
+		return nil, err
 	}
-
-	status := strings.ToUpper(strings.TrimSpace(input.Status))
-	if status == "" {
-		status = "PENDING"
+	status, err := normalizeStatus(input.Status)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateTaskConsistency(status, input.CompletedAt); err != nil {
+		return nil, err
 	}
 
 	task := &models.Task{
@@ -73,7 +84,6 @@ func (s *Service) Create(input CreateTaskInput) (*models.Task, error) {
 		PlanDate:    normalizeDate(input.PlanDate),
 		Status:      status,
 		CompletedAt: input.CompletedAt,
-		CarryCount:  input.CarryCount,
 		Ext:         datatypes.JSON(input.Ext),
 	}
 	if input.DueDate != nil {
@@ -109,7 +119,11 @@ func (s *Service) Update(taskID, userID uint64, input UpdateTaskInput) (*models.
 		task.Title = title
 	}
 	if input.Priority != nil {
-		task.Priority = strings.ToUpper(strings.TrimSpace(*input.Priority))
+		priority, err := normalizePriority(*input.Priority)
+		if err != nil {
+			return nil, err
+		}
+		task.Priority = priority
 	}
 	if input.PlanDate != nil && !input.PlanDate.IsZero() {
 		task.PlanDate = normalizeDate(*input.PlanDate)
@@ -119,16 +133,26 @@ func (s *Service) Update(taskID, userID uint64, input UpdateTaskInput) (*models.
 		task.DueDate = &dueDate
 	}
 	if input.Status != nil {
-		task.Status = strings.ToUpper(strings.TrimSpace(*input.Status))
+		status, err := normalizeStatus(*input.Status)
+		if err != nil {
+			return nil, err
+		}
+		task.Status = status
 	}
 	if input.CompletedAt != nil {
 		task.CompletedAt = input.CompletedAt
 	}
-	if input.CarryCount != nil {
-		task.CarryCount = *input.CarryCount
-	}
 	if input.Ext != nil {
 		task.Ext = datatypes.JSON(input.Ext)
+	}
+
+	if task.Status == "PENDING" {
+		if input.CompletedAt != nil {
+			return nil, ErrInvalidTaskInput
+		}
+		task.CompletedAt = nil
+	} else if task.CompletedAt == nil {
+		return nil, ErrInvalidTaskInput
 	}
 
 	if err := s.repo.UpdateTask(context.Background(), task); err != nil {
@@ -152,6 +176,42 @@ func (s *Service) CarryOverPendingTasks(userID uint64, today time.Time) (int64, 
 	toDate := normalizeDate(today)
 	fromDate := toDate.AddDate(0, 0, -1)
 	return s.repo.CarryOverPending(context.Background(), userID, fromDate, toDate)
+}
+
+func normalizePriority(value string) (string, error) {
+	priority := strings.ToUpper(strings.TrimSpace(value))
+	if priority == "" {
+		return "MEDIUM", nil
+	}
+	if _, ok := allowedPriorities[priority]; !ok {
+		return "", ErrInvalidTaskInput
+	}
+	return priority, nil
+}
+
+func normalizeStatus(value string) (string, error) {
+	status := strings.ToUpper(strings.TrimSpace(value))
+	if status == "" {
+		return "PENDING", nil
+	}
+	if _, ok := allowedStatuses[status]; !ok {
+		return "", ErrInvalidTaskInput
+	}
+	return status, nil
+}
+
+func validateTaskConsistency(status string, completedAt *time.Time) error {
+	switch status {
+	case "DONE":
+		if completedAt == nil {
+			return ErrInvalidTaskInput
+		}
+	case "PENDING":
+		if completedAt != nil {
+			return ErrInvalidTaskInput
+		}
+	}
+	return nil
 }
 
 func isTaskNotFound(err error) bool {

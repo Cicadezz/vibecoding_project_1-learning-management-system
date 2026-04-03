@@ -25,7 +25,6 @@ type taskCreateRequest struct {
 	PlanDate    time.Time       `json:"plan_date"`
 	Status      string          `json:"status"`
 	CompletedAt *time.Time      `json:"completed_at"`
-	CarryCount  int             `json:"carry_count"`
 	Ext         json.RawMessage `json:"ext"`
 }
 
@@ -36,7 +35,6 @@ type taskUpdateRequest struct {
 	PlanDate    *time.Time      `json:"plan_date"`
 	Status      *string         `json:"status"`
 	CompletedAt *time.Time      `json:"completed_at"`
-	CarryCount  *int            `json:"carry_count"`
 	Ext         json.RawMessage `json:"ext"`
 }
 
@@ -87,7 +85,6 @@ func (h *Handler) Create(c *gin.Context) {
 		PlanDate:    req.PlanDate,
 		Status:      req.Status,
 		CompletedAt: req.CompletedAt,
-		CarryCount:  req.CarryCount,
 		Ext:         []byte(req.Ext),
 	})
 	if err != nil {
@@ -128,7 +125,6 @@ func (h *Handler) Update(c *gin.Context) {
 		PlanDate:    req.PlanDate,
 		Status:      req.Status,
 		CompletedAt: req.CompletedAt,
-		CarryCount:  req.CarryCount,
 		Ext:         []byte(req.Ext),
 	})
 	if err != nil {

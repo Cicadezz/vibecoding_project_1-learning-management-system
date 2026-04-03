@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -102,7 +103,9 @@ func (s *Service) Login(username, password string) (string, uint64, string, erro
 	}
 
 	if s.taskSvc != nil {
-		_, _ = s.taskSvc.CarryOverPendingTasks(user.ID, s.now())
+		if _, err := s.taskSvc.CarryOverPendingTasks(user.ID, s.now()); err != nil {
+			log.Printf("carry-over pending tasks failed for user %d: %v", user.ID, err)
+		}
 	}
 
 	return token, user.ID, user.Username, nil

@@ -17,11 +17,31 @@ func TestCarryOverPendingTasksIsIdempotent(t *testing.T) {
 	yesterday := time.Date(2026, 4, 1, 0, 0, 0, 0, time.Local)
 	today := time.Date(2026, 4, 2, 0, 0, 0, 0, time.Local)
 
-	_, _ = svc.Create(CreateTaskInput{UserID: userID, Title: "刷题", PlanDate: yesterday})
-	_, _ = svc.CarryOverPendingTasks(userID, today)
-	_, _ = svc.CarryOverPendingTasks(userID, today)
+	created, err := svc.Create(CreateTaskInput{UserID: userID, Title: "刷题", PlanDate: yesterday})
+	if err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+	if created == nil {
+		t.Fatal("expected created task")
+	}
 
-	list, _ := svc.ListByDate(userID, today)
+	rows1, err := svc.CarryOverPendingTasks(userID, today)
+	if err != nil {
+		t.Fatalf("carry over first run: %v", err)
+	}
+	rows2, err := svc.CarryOverPendingTasks(userID, today)
+	if err != nil {
+		t.Fatalf("carry over second run: %v", err)
+	}
+
+	if rows1 != 1 || rows2 != 0 {
+		t.Fatalf("expected carry-over rows 1 then 0, got %d then %d", rows1, rows2)
+	}
+
+	list, err := svc.ListByDate(userID, today)
+	if err != nil {
+		t.Fatalf("list tasks: %v", err)
+	}
 	if len(list) != 1 || list[0].CarryCount != 1 {
 		t.Fatalf("expected exactly one carried task with carry_count=1")
 	}
