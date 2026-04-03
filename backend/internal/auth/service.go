@@ -25,11 +25,16 @@ var (
 
 const defaultTokenTTL = 24 * time.Hour
 
+type CarryOverService interface {
+	CarryOverPendingTasks(userID uint64, today time.Time) (int64, error)
+}
+
 type Service struct {
 	repo      *Repository
 	secretKey []byte
 	tokenTTL  time.Duration
 	now       func() time.Time
+	taskSvc   CarryOverService
 }
 
 func NewService(repo *Repository, secret string) *Service {
@@ -46,6 +51,10 @@ func NewService(repo *Repository, secret string) *Service {
 		tokenTTL:  defaultTokenTTL,
 		now:       time.Now,
 	}
+}
+
+func (s *Service) SetTaskService(taskSvc CarryOverService) {
+	s.taskSvc = taskSvc
 }
 
 func (s *Service) Register(username, password string) (string, uint64, string, error) {
@@ -90,6 +99,10 @@ func (s *Service) Login(username, password string) (string, uint64, string, erro
 	token, err := s.IssueToken(user.ID)
 	if err != nil {
 		return "", 0, "", err
+	}
+
+	if s.taskSvc != nil {
+		_, _ = s.taskSvc.CarryOverPendingTasks(user.ID, s.now())
 	}
 
 	return token, user.ID, user.Username, nil
