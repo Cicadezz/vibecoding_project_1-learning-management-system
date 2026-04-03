@@ -8,21 +8,29 @@ import (
 	"learning-growth-platform/internal/database/models"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 var ErrInvalidTimerInput = errors.New("invalid timer input")
 var ErrTimerNotRunning = errors.New("timer not running")
 var ErrTimerAlreadyRunning = errors.New("timer already running")
+var ErrSubjectNotFound = errors.New("subject not found")
 
-type Service struct {
-	repo *Repository
-	now  func() time.Time
+type SubjectRepository interface {
+	GetSubjectByID(ctx context.Context, subjectID, userID uint64) (*models.Subject, error)
 }
 
-func NewService(repo *Repository) *Service {
+type Service struct {
+	repo        *Repository
+	subjectRepo SubjectRepository
+	now         func() time.Time
+}
+
+func NewService(repo *Repository, subjectRepo SubjectRepository) *Service {
 	return &Service{
-		repo: repo,
-		now:  time.Now,
+		repo:        repo,
+		subjectRepo: subjectRepo,
+		now:         time.Now,
 	}
 }
 
@@ -30,32 +38,48 @@ func (s *Service) Start(userID, subjectID uint64) (*models.TimerState, error) {
 	if userID == 0 || subjectID == 0 {
 		return nil, ErrInvalidTimerInput
 	}
-
-	state, err := s.repo.GetStateByUser(context.Background(), userID)
-	if err != nil {
-		if !errors.Is(err, ErrTimerStateNotFound) {
-			return nil, err
+	if _, err := s.subjectRepo.GetSubjectByID(context.Background(), subjectID, userID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrSubjectNotFound
 		}
-		state = &models.TimerState{UserID: userID}
-	}
-
-	if state.Status == "RUNNING" {
-		return nil, ErrTimerAlreadyRunning
+		return nil, err
 	}
 
 	now := s.now()
-	state.Status = "RUNNING"
-	subject := subjectID
-	state.SubjectID = &subject
-	state.StartedAt = &now
-	state.LastResumedAt = &now
-	state.PausedSeconds = 0
-	state.DraftNote = nil
+	var state models.TimerState
 
-	if err := s.repo.SaveState(context.Background(), state); err != nil {
+	if err := s.repo.db.Transaction(func(tx *gorm.DB) error {
+		placeholder := &models.TimerState{UserID: userID, Status: "IDLE"}
+		if err := tx.WithContext(context.Background()).Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "user_id"}},
+			DoNothing: true,
+		}).Create(placeholder).Error; err != nil {
+			return err
+		}
+
+		result := tx.WithContext(context.Background()).Model(&models.TimerState{}).
+			Where("user_id = ? AND status <> ?", userID, "RUNNING").
+			Updates(map[string]any{
+				"status":          "RUNNING",
+				"subject_id":      subjectID,
+				"started_at":      now,
+				"last_resumed_at": now,
+				"paused_seconds":  0,
+				"draft_note":      nil,
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return ErrTimerAlreadyRunning
+		}
+
+		return tx.WithContext(context.Background()).Where("user_id = ?", userID).First(&state).Error
+	}); err != nil {
 		return nil, err
 	}
-	return state, nil
+
+	return &state, nil
 }
 
 func (s *Service) Stop(userID uint64, note *string) (*models.StudySession, error) {
@@ -63,52 +87,59 @@ func (s *Service) Stop(userID uint64, note *string) (*models.StudySession, error
 		return nil, ErrInvalidTimerInput
 	}
 
-	state, err := s.repo.GetStateByUser(context.Background(), userID)
-	if err != nil {
-		if errors.Is(err, ErrTimerStateNotFound) {
-			return nil, ErrTimerNotRunning
-		}
-		return nil, err
-	}
-	if state.Status != "RUNNING" || state.StartedAt == nil || state.SubjectID == nil {
-		return nil, ErrTimerNotRunning
-	}
-
-	endAt := s.now()
-	startedAt := *state.StartedAt
-	activeSeconds := int(endAt.Sub(startedAt).Seconds()) - state.PausedSeconds
-	if activeSeconds < 0 {
-		activeSeconds = 0
-	}
-	durationMinutes := activeSeconds / 60
-
-	sessionNote := note
-	if sessionNote == nil {
-		sessionNote = state.DraftNote
-	}
-
-	session := &models.StudySession{
-		UserID:          userID,
-		SubjectID:       *state.SubjectID,
-		RecordType:      "TIMER",
-		StartAt:         startedAt,
-		EndAt:           endAt,
-		DurationMinutes: durationMinutes,
-		Note:            sessionNote,
-	}
-
+	var session *models.StudySession
 	if err := s.repo.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.WithContext(context.Background()).Create(session).Error; err != nil {
+		var state models.TimerState
+		if err := tx.WithContext(context.Background()).Where("user_id = ?", userID).First(&state).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrTimerNotRunning
+			}
 			return err
 		}
+		if state.Status != "RUNNING" || state.StartedAt == nil || state.SubjectID == nil {
+			return ErrTimerNotRunning
+		}
 
-		state.Status = "IDLE"
-		state.SubjectID = nil
-		state.StartedAt = nil
-		state.LastResumedAt = nil
-		state.PausedSeconds = 0
-		state.DraftNote = nil
-		return tx.WithContext(context.Background()).Save(state).Error
+		endAt := s.now()
+		startedAt := *state.StartedAt
+		activeSeconds := int(endAt.Sub(startedAt).Seconds()) - state.PausedSeconds
+		if activeSeconds < 0 {
+			activeSeconds = 0
+		}
+		durationMinutes := activeSeconds / 60
+
+		sessionNote := note
+		if sessionNote == nil {
+			sessionNote = state.DraftNote
+		}
+
+		claimed := tx.WithContext(context.Background()).Model(&models.TimerState{}).
+			Where("id = ? AND user_id = ? AND status = ?", state.ID, userID, "RUNNING").
+			Updates(map[string]any{
+				"status":          "IDLE",
+				"subject_id":      nil,
+				"started_at":      nil,
+				"last_resumed_at": nil,
+				"paused_seconds":  0,
+				"draft_note":      nil,
+			})
+		if claimed.Error != nil {
+			return claimed.Error
+		}
+		if claimed.RowsAffected == 0 {
+			return ErrTimerNotRunning
+		}
+
+		session = &models.StudySession{
+			UserID:          userID,
+			SubjectID:       *state.SubjectID,
+			RecordType:      "TIMER",
+			StartAt:         startedAt,
+			EndAt:           endAt,
+			DurationMinutes: durationMinutes,
+			Note:            sessionNote,
+		}
+		return tx.WithContext(context.Background()).Create(session).Error
 	}); err != nil {
 		return nil, err
 	}

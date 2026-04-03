@@ -1,8 +1,8 @@
 package timer
 
 import (
-	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -17,9 +17,7 @@ func NewHandler(svc *Service) *Handler {
 }
 
 type startRequest struct {
-	SubjectID uint64          `json:"subject_id"`
-	Note      *string         `json:"note"`
-	Ext       json.RawMessage `json:"ext"`
+	SubjectID uint64 `json:"subject_id"`
 }
 
 type stopRequest struct {
@@ -44,6 +42,8 @@ func (h *Handler) Start(c *gin.Context) {
 		switch {
 		case errors.Is(err, ErrInvalidTimerInput):
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		case errors.Is(err, ErrSubjectNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		case errors.Is(err, ErrTimerAlreadyRunning):
 			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 		default:
@@ -63,7 +63,7 @@ func (h *Handler) Stop(c *gin.Context) {
 	}
 
 	var req stopRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
 		return
 	}

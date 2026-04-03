@@ -47,11 +47,14 @@ func (h *Handler) Create(c *gin.Context) {
 		Ext:       []byte(req.Ext),
 	})
 	if err != nil {
-		if errors.Is(err, ErrInvalidStudyInput) {
+		switch {
+		case errors.Is(err, ErrInvalidStudyInput):
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
+		case errors.Is(err, ErrSubjectNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
 
