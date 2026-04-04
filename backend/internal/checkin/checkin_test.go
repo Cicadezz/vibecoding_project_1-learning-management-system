@@ -62,6 +62,32 @@ func TestCheckinRequiresStudyAndIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestCheckinAllowsCrossMidnightStudySession(t *testing.T) {
+	svc, db, subjectRepo := buildCheckinServiceForTest(t)
+	userID := uint64(1)
+	subjectID := createCheckinSubjectForUser(t, subjectRepo, userID, "math")
+	day := time.Date(2026, 4, 3, 0, 0, 0, 0, time.Local)
+
+	if err := db.Create(&models.StudySession{
+		UserID:          userID,
+		SubjectID:       subjectID,
+		RecordType:      "MANUAL",
+		StartAt:         time.Date(2026, 4, 2, 23, 30, 0, 0, time.Local),
+		EndAt:           time.Date(2026, 4, 3, 0, 30, 0, 0, time.Local),
+		DurationMinutes: 60,
+	}).Error; err != nil {
+		t.Fatalf("create cross-midnight study session: %v", err)
+	}
+
+	checkin, err := svc.CheckinToday(userID, day)
+	if err != nil {
+		t.Fatalf("checkin with cross-midnight study session: %v", err)
+	}
+	if checkin == nil {
+		t.Fatal("expected checkin record")
+	}
+}
+
 func TestCheckinStreakAnchorsOnToday(t *testing.T) {
 	t.Run("continuous streak includes today", func(t *testing.T) {
 		svc, db, subjectRepo := buildCheckinServiceForTest(t)

@@ -40,7 +40,7 @@ func (r *Repository) HasStudySessionOnDate(ctx context.Context, userID uint64, d
 	var count int64
 	if err := r.db.WithContext(ctx).
 		Model(&models.StudySession{}).
-		Where("user_id = ? AND start_at >= ? AND start_at < ?", userID, start, end).
+		Where("user_id = ? AND start_at < ? AND end_at >= ?", userID, end, start).
 		Count(&count).Error; err != nil {
 		return false, err
 	}
