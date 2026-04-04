@@ -6,6 +6,7 @@ import (
 	"learning-growth-platform/internal/auth"
 	"learning-growth-platform/internal/checkin"
 	"learning-growth-platform/internal/http/middleware"
+	"learning-growth-platform/internal/stats"
 	"learning-growth-platform/internal/study"
 	"learning-growth-platform/internal/subjects"
 	"learning-growth-platform/internal/tasks"
@@ -34,6 +35,7 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 		studyRepo := study.NewRepository(db)
 		studyHandler := study.NewHandler(study.NewService(studyRepo, subjectRepo))
 		checkinHandler := checkin.NewHandler(checkin.NewService(checkin.NewRepository(db)))
+		statsHandler := stats.NewHandler(stats.NewService(stats.NewRepository(db)))
 		timerHandler := timer.NewHandler(timer.NewService(timer.NewRepository(db), subjectRepo))
 
 		authGroup := r.Group("/api/auth")
@@ -58,6 +60,9 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 		apiGroup.POST("/study/sessions", studyHandler.Create)
 		apiGroup.POST("/checkin/today", checkinHandler.Today)
 		apiGroup.GET("/checkin/streak", checkinHandler.Streak)
+		apiGroup.GET("/stats/overview", statsHandler.Overview)
+		apiGroup.GET("/stats/weekly-trend", statsHandler.WeeklyTrend)
+		apiGroup.GET("/stats/subject-distribution", statsHandler.SubjectDistribution)
 		apiGroup.POST("/timer/start", timerHandler.Start)
 		apiGroup.POST("/timer/stop", timerHandler.Stop)
 	}
