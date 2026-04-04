@@ -3,6 +3,7 @@ package stats
 import (
 	"context"
 	"errors"
+	"math"
 	"sort"
 	"time"
 )
@@ -216,5 +217,15 @@ func minutesInRange(row StudySessionRow, start, end time.Time) int {
 		return 0
 	}
 
-	return int(intersectEnd.Sub(intersectStart).Minutes())
+	elapsed := row.EndAt.Sub(row.StartAt)
+	if elapsed <= 0 {
+		return 0
+	}
+
+	overlap := intersectEnd.Sub(intersectStart)
+	if overlap >= elapsed {
+		return row.DurationMinutes
+	}
+
+	return int(math.Round(float64(row.DurationMinutes) * overlap.Seconds() / elapsed.Seconds()))
 }
