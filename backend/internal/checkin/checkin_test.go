@@ -25,14 +25,7 @@ func TestCheckinRequiresStudyAndIsIdempotent(t *testing.T) {
 		t.Fatalf("expected ErrStudySessionRequired, got %v", err)
 	}
 
-	if err := db.Create(&models.StudySession{
-		UserID:          userID,
-		SubjectID:       subjectID,
-		RecordType:      "MANUAL",
-		StartAt:         day.Add(9 * time.Hour),
-		EndAt:           day.Add(10 * time.Hour),
-		DurationMinutes: 60,
-	}).Error; err != nil {
+	if err := createCheckinStudySession(t, db, userID, subjectID, day); err != nil {
 		t.Fatalf("create study session: %v", err)
 	}
 
@@ -69,6 +62,58 @@ func TestCheckinRequiresStudyAndIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestCheckinStreakAnchorsOnToday(t *testing.T) {
+	t.Run("continuous streak includes today", func(t *testing.T) {
+		svc, db, subjectRepo := buildCheckinServiceForTest(t)
+		today := time.Date(2026, 4, 5, 0, 0, 0, 0, time.Local)
+		svc.now = func() time.Time { return today.Add(12 * time.Hour) }
+		userID := uint64(1)
+		subjectID := createCheckinSubjectForUser(t, subjectRepo, userID, "math")
+
+		for _, day := range []time.Time{today.AddDate(0, 0, -2), today.AddDate(0, 0, -1), today} {
+			if err := createCheckinStudySession(t, db, userID, subjectID, day); err != nil {
+				t.Fatalf("create study session: %v", err)
+			}
+			if _, err := svc.CheckinToday(userID, day); err != nil {
+				t.Fatalf("checkin %v: %v", day, err)
+			}
+		}
+
+		streak, err := svc.GetStreak(userID)
+		if err != nil {
+			t.Fatalf("get streak: %v", err)
+		}
+		if streak != 3 {
+			t.Fatalf("expected streak 3, got %d", streak)
+		}
+	})
+
+	t.Run("gap on today returns zero", func(t *testing.T) {
+		svc, db, subjectRepo := buildCheckinServiceForTest(t)
+		today := time.Date(2026, 4, 5, 0, 0, 0, 0, time.Local)
+		svc.now = func() time.Time { return today.Add(12 * time.Hour) }
+		userID := uint64(1)
+		subjectID := createCheckinSubjectForUser(t, subjectRepo, userID, "math")
+
+		for _, day := range []time.Time{today.AddDate(0, 0, -2), today.AddDate(0, 0, -1)} {
+			if err := createCheckinStudySession(t, db, userID, subjectID, day); err != nil {
+				t.Fatalf("create study session: %v", err)
+			}
+			if _, err := svc.CheckinToday(userID, day); err != nil {
+				t.Fatalf("checkin %v: %v", day, err)
+			}
+		}
+
+		streak, err := svc.GetStreak(userID)
+		if err != nil {
+			t.Fatalf("get streak: %v", err)
+		}
+		if streak != 0 {
+			t.Fatalf("expected streak 0, got %d", streak)
+		}
+	})
+}
+
 func buildCheckinServiceForTest(t *testing.T) (*Service, *gorm.DB, *subjects.Repository) {
 	t.Helper()
 
@@ -103,6 +148,19 @@ func createCheckinSubjectForUser(t *testing.T, repo *subjects.Repository, userID
 		t.Fatalf("create subject: %v", err)
 	}
 	return subject.ID
+}
+
+func createCheckinStudySession(t *testing.T, db *gorm.DB, userID, subjectID uint64, day time.Time) error {
+	t.Helper()
+
+	return db.Create(&models.StudySession{
+		UserID:          userID,
+		SubjectID:       subjectID,
+		RecordType:      "MANUAL",
+		StartAt:         day.Add(9 * time.Hour),
+		EndAt:           day.Add(10 * time.Hour),
+		DurationMinutes: 60,
+	}).Error
 }
 
 func shouldSkipForCGOCheckin(err error) bool {

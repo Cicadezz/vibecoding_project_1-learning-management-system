@@ -2,6 +2,7 @@ package checkin
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"learning-growth-platform/internal/database/models"
@@ -68,16 +69,13 @@ func (r *Repository) GetDailyCheckinByDate(ctx context.Context, userID uint64, d
 	return &checkin, nil
 }
 
-func (r *Repository) ListCheckinDates(ctx context.Context, userID uint64, until time.Time) ([]time.Time, error) {
-	end := normalizeDay(until).AddDate(0, 0, 1)
-
-	var dates []time.Time
-	if err := r.db.WithContext(ctx).
-		Model(&models.DailyCheckin{}).
-		Where("user_id = ? AND checkin_date < ?", userID, end).
-		Order("checkin_date DESC").
-		Pluck("checkin_date", &dates).Error; err != nil {
-		return nil, err
+func (r *Repository) HasCheckinOnDate(ctx context.Context, userID uint64, day time.Time) (bool, error) {
+	_, err := r.GetDailyCheckinByDate(ctx, userID, day)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		}
+		return false, err
 	}
-	return dates, nil
+	return true, nil
 }

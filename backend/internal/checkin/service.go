@@ -64,23 +64,27 @@ func (s *Service) GetStreak(userID uint64) (int, error) {
 		return 0, ErrInvalidCheckinInput
 	}
 
-	dates, err := s.repo.ListCheckinDates(context.Background(), userID, s.now())
+	today := normalizeDay(s.now())
+	hasToday, err := s.repo.HasCheckinOnDate(context.Background(), userID, today)
 	if err != nil {
 		return 0, err
 	}
-	if len(dates) == 0 {
+	if !hasToday {
 		return 0, nil
 	}
 
-	streak := 0
-	expected := normalizeDay(dates[0])
-	for _, date := range dates {
-		current := normalizeDay(date)
-		if !current.Equal(expected) {
+	streak := 1
+	cursor := today.AddDate(0, 0, -1)
+	for {
+		hasCheckin, err := s.repo.HasCheckinOnDate(context.Background(), userID, cursor)
+		if err != nil {
+			return 0, err
+		}
+		if !hasCheckin {
 			break
 		}
 		streak++
-		expected = expected.AddDate(0, 0, -1)
+		cursor = cursor.AddDate(0, 0, -1)
 	}
 
 	return streak, nil
