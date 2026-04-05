@@ -1,37 +1,69 @@
-﻿import { useState, type CSSProperties } from 'react';
+﻿import { type CSSProperties, useMemo, useState } from 'react';
 
-import { LoginPage } from './pages/LoginPage';
-import { RegisterPage } from './pages/RegisterPage';
+import { CheckinPage } from './pages/CheckinPage';
+import { DashboardPage } from './pages/DashboardPage';
+import { SettingsPage } from './pages/SettingsPage';
+import { StudyPage } from './pages/StudyPage';
+import { TasksPage } from './pages/TasksPage';
 
-type View = 'login' | 'register';
+type View = 'dashboard' | 'tasks' | 'study' | 'checkin' | 'settings';
+
+type NavItem = {
+  key: View;
+  label: string;
+};
+
+const navItems: NavItem[] = [
+  { key: 'dashboard', label: 'Dashboard' },
+  { key: 'tasks', label: 'Tasks' },
+  { key: 'study', label: 'Study' },
+  { key: 'checkin', label: 'Checkin' },
+  { key: 'settings', label: 'Settings' },
+];
 
 export default function App() {
-  const [view, setView] = useState<View>('login');
+  const [view, setView] = useState<View>('dashboard');
+
+  const currentPage = useMemo(() => {
+    switch (view) {
+      case 'dashboard':
+        return <DashboardPage />;
+      case 'tasks':
+        return <TasksPage />;
+      case 'study':
+        return <StudyPage />;
+      case 'checkin':
+        return <CheckinPage />;
+      case 'settings':
+        return <SettingsPage />;
+      default:
+        return null;
+    }
+  }, [view]);
 
   return (
     <main style={styles.shell}>
-      <section style={styles.card}>
-        <div style={styles.switcher}>
-          <button
-            type="button"
-            onClick={() => setView('login')}
-            style={view === 'login' ? styles.activeTab : styles.tab}
-          >
-            登录
-          </button>
-          <button
-            type="button"
-            onClick={() => setView('register')}
-            style={view === 'register' ? styles.activeTab : styles.tab}
-          >
-            注册
-          </button>
-        </div>
-        {view === 'login' ? (
-          <LoginPage onSwitchToRegister={() => setView('register')} />
-        ) : (
-          <RegisterPage onSwitchToLogin={() => setView('login')} />
-        )}
+      <section style={styles.frame}>
+        <header style={styles.header}>
+          <div>
+            <p style={styles.kicker}>Learning Growth MVP</p>
+            <h1 style={styles.brand}>成长看板</h1>
+          </div>
+          <nav aria-label="Main navigation" style={styles.nav}>
+            {navItems.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => setView(item.key)}
+                style={view === item.key ? styles.activeNavButton : styles.navButton}
+              >
+                {item.label}
+              </button>
+            ))}
+          </nav>
+        </header>
+
+        <section style={styles.content}>{currentPage}</section>
       </section>
     </main>
   );
@@ -40,43 +72,62 @@ export default function App() {
 const styles: Record<string, CSSProperties> = {
   shell: {
     minHeight: '100vh',
-    display: 'grid',
-    placeItems: 'center',
     padding: '24px',
-    background: '#f5f7fb',
-    color: '#102033',
+    background:
+      'radial-gradient(circle at top left, rgba(56, 189, 248, 0.22), transparent 32%), radial-gradient(circle at top right, rgba(124, 58, 237, 0.18), transparent 28%), linear-gradient(180deg, #06111f 0%, #0a1527 100%)',
+    color: '#e5eefb',
     fontFamily: 'system-ui, sans-serif',
   },
-  card: {
-    width: '100%',
-    maxWidth: '420px',
-    background: '#ffffff',
-    borderRadius: '16px',
-    padding: '24px',
-    boxShadow: '0 12px 40px rgba(16, 32, 51, 0.12)',
-  },
-  switcher: {
+  frame: {
+    maxWidth: '1200px',
+    margin: '0 auto',
     display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: '8px',
-    marginBottom: '24px',
+    gap: '24px',
   },
-  tab: {
-    border: '1px solid #c8d2e0',
-    background: '#f8fafc',
-    color: '#102033',
-    borderRadius: '10px',
-    padding: '10px 12px',
+  header: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '16px',
+  },
+  kicker: {
+    margin: 0,
+    color: '#7dd3fc',
+    fontSize: '12px',
+    letterSpacing: '0.16em',
+    textTransform: 'uppercase',
+  },
+  brand: {
+    margin: '6px 0 0',
+    fontSize: '30px',
+    lineHeight: 1.1,
+  },
+  nav: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '10px',
+  },
+  navButton: {
+    border: '1px solid rgba(148, 163, 184, 0.22)',
+    borderRadius: '999px',
+    padding: '10px 14px',
+    background: 'rgba(15, 23, 42, 0.72)',
+    color: '#d7e3f4',
     fontSize: '14px',
     cursor: 'pointer',
   },
-  activeTab: {
-    border: '1px solid #1d4ed8',
-    background: '#1d4ed8',
-    color: '#ffffff',
-    borderRadius: '10px',
-    padding: '10px 12px',
+  activeNavButton: {
+    border: '1px solid rgba(56, 189, 248, 0.6)',
+    borderRadius: '999px',
+    padding: '10px 14px',
+    background: 'linear-gradient(135deg, #38bdf8 0%, #6366f1 100%)',
+    color: '#eff6ff',
     fontSize: '14px',
     cursor: 'pointer',
+    boxShadow: '0 10px 24px rgba(56, 189, 248, 0.2)',
+  },
+  content: {
+    minHeight: 'calc(100vh - 180px)',
   },
 };
