@@ -227,5 +227,6 @@ func minutesInRange(row StudySessionRow, start, end time.Time) int {
 		return row.DurationMinutes
 	}
 
-	return int(math.Round(float64(row.DurationMinutes) * overlap.Seconds() / elapsed.Seconds()))
+	return int(math.Floor(float64(row.DurationMinutes) * overlap.Seconds() / elapsed.Seconds()))
 }
+

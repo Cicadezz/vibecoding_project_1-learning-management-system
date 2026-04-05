@@ -1,4 +1,4 @@
-﻿type JsonRecord = Record<string, unknown>;
+type JsonRecord = Record<string, unknown>;
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? '/api';
 
@@ -51,6 +51,12 @@ async function parseErrorMessage(response: Response) {
   if (contentType.includes('application/json') && body) {
     try {
       const payload = JSON.parse(body) as JsonRecord;
+      const error = payload.error;
+
+      if (typeof error === 'string' && error.trim()) {
+        return error;
+      }
+
       const message = payload.message;
 
       if (typeof message === 'string' && message.trim()) {
@@ -63,3 +69,4 @@ async function parseErrorMessage(response: Response) {
 
   return body.trim() || `Request failed with status ${response.status}`;
 }
+
