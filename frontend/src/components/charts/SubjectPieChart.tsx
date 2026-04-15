@@ -38,14 +38,14 @@ export function SubjectPieChart({ data = defaultData }: SubjectPieChartProps) {
   return (
     <section style={styles.card} aria-label="学科分布">
       <header style={styles.header}>
-        <h2 style={styles.title}>Subject Share</h2>
+        <h2 style={styles.title}>学科占比</h2>
         <p style={styles.subtitle}>按学科拆分学习时长</p>
       </header>
 
       <div style={styles.layout}>
-        <div style={{ ...styles.ring, background: `conic-gradient(${background})` }} role="img" aria-label="Subject distribution chart">
+        <div style={{ ...styles.ring, background: `conic-gradient(${background})` }} role="img" aria-label="学科时长分布图">
           <div style={styles.innerRing}>
-            <span style={styles.totalLabel}>{totalMinutes}m</span>
+            <span style={styles.totalLabel}>{totalMinutes} 分</span>
           </div>
         </div>
 
@@ -54,7 +54,7 @@ export function SubjectPieChart({ data = defaultData }: SubjectPieChartProps) {
             <li key={item.label} style={styles.legendItem}>
               <span style={{ ...styles.swatch, background: item.color }} />
               <span style={styles.legendText}>{item.label}</span>
-              <span style={styles.legendValue}>{item.minutes}m</span>
+              <span style={styles.legendValue}>{item.minutes} 分</span>
             </li>
           ))}
         </ul>

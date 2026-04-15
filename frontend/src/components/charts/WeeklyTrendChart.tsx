@@ -25,11 +25,11 @@ export function WeeklyTrendChart({ data = defaultData }: WeeklyTrendChartProps) 
   return (
     <section style={styles.card} aria-label="本周学习趋势">
       <header style={styles.header}>
-        <h2 style={styles.title}>Weekly Trend</h2>
+        <h2 style={styles.title}>本周趋势</h2>
         <p style={styles.subtitle}>按天展示学习时长</p>
       </header>
 
-      <div style={styles.chart} role="img" aria-label="Weekly learning trend chart">
+      <div style={styles.chart} role="img" aria-label="每周学习趋势图">
         {data.map((point) => {
           const height = Math.max((point.minutes / maxMinutes) * 100, 12);
 
@@ -39,7 +39,7 @@ export function WeeklyTrendChart({ data = defaultData }: WeeklyTrendChartProps) 
                 <div style={{ ...styles.barFill, height: `${height}%` }} />
               </div>
               <span style={styles.barLabel}>{point.label}</span>
-              <span style={styles.barValue}>{point.minutes}m</span>
+              <span style={styles.barValue}>{point.minutes} 分</span>
             </div>
           );
         })}

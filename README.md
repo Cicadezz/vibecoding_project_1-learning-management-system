@@ -1,91 +1,213 @@
-﻿# Learning Growth Platform
+﻿# 学习成长管理平台（本地 MVP）使用文档
 
-A minimal learning management MVP with a Go backend and a Vite frontend.
+本文档是完整的中文启动手册，覆盖：
+- 本地 MySQL 启动（Docker / 本机 MySQL 两种方式）
+- 后端启动
+- 前端启动
+- `TestMVPFlow` 跑成真实 PASS（非 SKIP）
+- 常见问题排查
 
-## What runs locally
+## 1. 项目结构与运行端口
 
-- Backend: Go HTTP API on `http://localhost:8080`
-- Frontend: Vite dev server on `http://localhost:5173`
-- Database: MySQL 8.0.27 via Docker Compose
+- 后端：`backend/`（Go 1.24 + Gin + Gorm）
+- 前端：`frontend/`（Vite + React + TypeScript）
+- 数据库：MySQL 8.0.27
 
-## Prerequisites
+默认端口：
+- 后端 API：`http://localhost:8080`
+- 前端开发服务：`http://localhost:5173`
+- MySQL：`127.0.0.1:3306`
 
-- Go 1.24+
-- Node.js 18+
-- Docker Desktop or another Docker Engine
+## 2. 环境要求
 
-## Start MySQL
+- Go `1.24+`
+- Node.js `18+`
+- npm `10+`（推荐）
+- MySQL 8.0.27（可用 Docker 或本机服务）
 
-The backend expects a local MySQL database named `learning_growth`.
+## 3. 数据库连接信息（固定）
 
-```bash
+项目默认数据库参数：
+- 用户名：`root`
+- 密码：`010511`
+- 数据库：`learning_growth`
+- DSN：
+
+```txt
+root:010511@tcp(127.0.0.1:3306)/learning_growth?charset=utf8mb4&parseTime=True&loc=Local
+```
+
+## 4. 启动 MySQL（推荐 Docker）
+
+在项目根目录执行：
+
+```powershell
 docker compose up -d mysql
 ```
 
-Default connection details:
+检查容器状态：
 
-- host: `127.0.0.1`
-- port: `3306`
-- database: `learning_growth`
-- user: `root`
-- password: `010511`
-
-Example DSN:
-
-```bash
-MYSQL_DSN="root:010511@tcp(127.0.0.1:3306)/learning_growth?charset=utf8mb4&parseTime=True&loc=Local"
+```powershell
+docker compose ps
 ```
 
-## Start the backend
+检查健康状态（可选）：
 
-From `backend/`:
+```powershell
+docker inspect --format='{{json .State.Health.Status}}' learning-growth-mysql
+```
 
-```bash
-copy .env.example .env
-# edit .env if needed
-# set MYSQL_DSN to your local MySQL instance
-# set JWT_SECRET if you want a custom dev secret
+### 4.1 如果你使用的是本机 MySQL（非 Docker）
 
+确保服务已启动，并创建数据库：
+
+```powershell
+mysql -uroot -p010511 -e "CREATE DATABASE IF NOT EXISTS learning_growth CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+```
+
+验证数据库存在：
+
+```powershell
+mysql -uroot -p010511 -e "SHOW DATABASES LIKE 'learning_growth';"
+```
+
+## 5. 启动后端服务
+
+在 `backend/` 下准备环境变量（Windows PowerShell）：
+
+```powershell
+Set-Location backend
+Copy-Item .env.example .env -Force
+```
+
+编辑 `.env`，确认至少包含：
+
+```env
+APP_PORT=8080
+MYSQL_DSN=root:010511@tcp(127.0.0.1:3306)/learning_growth?parseTime=true&loc=Local&charset=utf8mb4
+JWT_SECRET=local-dev-secret
+```
+
+启动后端：
+
+```powershell
 go run ./cmd/server
 ```
 
-If you use the Docker Compose MySQL service, the example DSN in `.env.example` already matches it.
+健康检查：
 
-## Start the frontend
+```powershell
+curl http://localhost:8080/api/health
+```
 
-From `frontend/`:
+预期返回：`{"status":"ok"}`
 
-```bash
+## 6. 启动前端服务
+
+在新终端中执行：
+
+```powershell
+Set-Location frontend
 npm install
 npm run dev
 ```
 
-If you need the frontend to point at a non-default API origin, set `VITE_API_BASE_URL` before running Vite.
+打开：`http://localhost:5173`
 
-## Validation
+如果后端不是默认地址，可设置：
 
-Run the backend integration test first. It skips cleanly if MySQL is unavailable.
+```powershell
+$env:VITE_API_BASE_URL="http://localhost:8080"
+npm run dev
+```
 
-From `backend/`:
+## 7. 跑测试（含 TestMVPFlow）
 
-```bash
+### 7.1 后端集成测试（重点）
+
+进入 `backend/`：
+
+```powershell
+Set-Location backend
+$env:MYSQL_DSN='root:010511@tcp(127.0.0.1:3306)/learning_growth?charset=utf8mb4&parseTime=True&loc=Local&timeout=2s&readTimeout=2s&writeTimeout=2s'
 go test ./internal/integration -run TestMVPFlow -v -count=1 -timeout=180s
+```
+
+如果 MySQL 可用且 `learning_growth` 存在，预期是：
+- `--- PASS: TestMVPFlow`
+- `ok   learning-growth-platform/internal/integration`
+
+### 7.2 后端全量测试
+
+```powershell
 go test ./... -count=1 -timeout=180s
 ```
 
-From `frontend/`:
+### 7.3 前端测试与构建
 
-```bash
+进入 `frontend/`：
+
+```powershell
+Set-Location ../frontend
 npm test -- --run
 npm run build
 ```
 
-## MVP flow covered by integration test
+## 8. TestMVPFlow 覆盖的业务流程
 
-- Register a new user
-- Log in with the same user
-- Create a subject
-- Create a done task for today
-- Create a study session for today
-- Check in for today
-- Fetch `/api/stats/overview` and verify the totals
+`TestMVPFlow` 会模拟完整 MVP 主链路：
+1. 注册
+2. 登录
+3. 创建科目
+4. 创建今日任务（DONE）
+5. 创建今日学习记录
+6. 今日打卡
+7. 获取 `/api/stats/overview` 并校验关键指标
+
+## 9. 常见问题排查
+
+### 9.1 `Unknown database 'learning_growth'`
+
+原因：MySQL 已启动，但数据库未创建。  
+处理：
+
+```powershell
+mysql -uroot -p010511 -e "CREATE DATABASE IF NOT EXISTS learning_growth CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+```
+
+### 9.2 `TestMVPFlow` 显示 `SKIP`
+
+原因：测试探测到 MySQL 依赖不可用（连接失败/数据库不存在）。  
+处理顺序：
+1. 确认 3306 端口可用
+2. 确认 `root/010511` 可登录
+3. 确认 `learning_growth` 已创建
+4. 重新执行 `go test ./internal/integration -run TestMVPFlow -v`
+
+### 9.3 前端 `vite/vitest` 报 `spawn EPERM`
+
+常见于受限沙箱/权限环境。  
+建议：
+1. 在普通本机终端执行 `npm test -- --run` 和 `npm run build`
+2. 确认杀软未阻止 `node`/`esbuild`
+3. 删除 `node_modules` 后重装：`npm install`
+
+## 10. 一次性完整启动命令清单（Windows PowerShell）
+
+```powershell
+# 1) 项目根目录
+Set-Location D:\ai_coding\learning-management-system\.worktrees\codex-learning-growth-mvp
+
+# 2) 启动 MySQL（Docker 方式）
+docker compose up -d mysql
+
+# 3) 后端
+Set-Location backend
+Copy-Item .env.example .env -Force
+go run ./cmd/server
+
+# 4) 新终端启动前端
+Set-Location D:\ai_coding\learning-management-system\.worktrees\codex-learning-growth-mvp\frontend
+npm install
+npm run dev
+```

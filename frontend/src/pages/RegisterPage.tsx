@@ -1,8 +1,9 @@
 ﻿import { useState, type CSSProperties, type FormEvent } from 'react';
 
-import { register } from '../lib/auth';
+import { register, type AuthPayload } from '../lib/auth';
 
 type RegisterPageProps = {
+  onSubmit?: (payload: AuthPayload) => Promise<void>;
   onSwitchToLogin?: () => void;
 };
 
@@ -16,7 +17,7 @@ const initialState: RegisterFormState = {
   password: '',
 };
 
-export function RegisterPage({ onSwitchToLogin }: RegisterPageProps = {}) {
+export function RegisterPage({ onSubmit, onSwitchToLogin }: RegisterPageProps = {}) {
   const [formState, setFormState] = useState<RegisterFormState>(initialState);
   const [status, setStatus] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -27,8 +28,12 @@ export function RegisterPage({ onSwitchToLogin }: RegisterPageProps = {}) {
     setStatus('');
 
     try {
-      await register(formState);
-      setStatus('注册请求已提交');
+      if (onSubmit) {
+        await onSubmit(formState);
+      } else {
+        await register(formState);
+      }
+      setStatus('注册成功');
     } catch (error) {
       setStatus(error instanceof Error ? error.message : '注册失败');
     } finally {
@@ -43,6 +48,7 @@ export function RegisterPage({ onSwitchToLogin }: RegisterPageProps = {}) {
         <label style={styles.field}>
           <span>用户名</span>
           <input
+            aria-label="用户名"
             value={formState.username}
             onChange={(event) =>
               setFormState((current) => ({ ...current, username: event.target.value }))
@@ -54,6 +60,7 @@ export function RegisterPage({ onSwitchToLogin }: RegisterPageProps = {}) {
         <label style={styles.field}>
           <span>密码</span>
           <input
+            aria-label="密码"
             type="password"
             value={formState.password}
             onChange={(event) =>

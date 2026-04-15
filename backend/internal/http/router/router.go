@@ -18,6 +18,12 @@ import (
 
 func NewRouter(db *gorm.DB) *gin.Engine {
 	r := gin.Default()
+	if err := r.SetTrustedProxies([]string{"127.0.0.1", "::1"}); err != nil {
+		panic(err)
+	}
+	r.GET("/", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"message": "learning-growth backend is running", "health": "/api/health"})
+	})
 	r.GET("/api/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
